@@ -1,13 +1,24 @@
 const TelegramBot = require('node-telegram-bot-api');
 
-// Carica le variabili che hai impostato su Railway
-const bot = new TelegramBot(process.env.BOT_TOKEN, { polling: true });
+// Recupera i dati da Railway
+const token = process.env.BOT_TOKEN;
+const chatId = process.env.CHAT_ID;
+
+const bot = new TelegramBot(token, { polling: true });
 
 async function main() {
-    console.log("Bot in fase di avvio...");
-    
-    // Invia il messaggio di conferma su Telegram
-    bot.sendMessage(process.env.CHAT_ID, "🚀 [MASTER CODE] Sistema Attivo!\n\nI 10 portafogli soldati sono pronti. Inizio scansione Dev per profitto da 1.5 SOL.");
+    console.log("Tentativo di invio messaggio...");
+    try {
+        await bot.sendMessage(chatId, "🚀 [MASTER CODE] Sistema Attivo! I 10 portafogli soldati sono pronti.");
+        console.log("Messaggio inviato con successo!");
+    } catch (err) {
+        console.log("Errore: " + err.message);
+    }
 }
+
+// Mantieni il bot sveglio
+bot.on('message', (msg) => {
+    console.log("Ricevuto: " + msg.text);
+});
 
 main();
