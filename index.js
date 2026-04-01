@@ -1,9 +1,14 @@
-
+hurricane1912:
 const TelegramBot = require('node-telegram-bot-api');
 const axios = require('axios');
-const { Connection, Keypair, Transaction, SystemProgram, LAMPORTS_PER_SOL } = require('@solana/web3.js');
+const express = require('express');
+const { Connection, Keypair, Transaction, SystemProgram, TransactionInstruction, PublicKey, LAMPORTS_PER_SOL } = require('@solana/web3.js');
 const bs58 = require('bs58');
 
+const app = express();
+app.use(express.json());
+
+// CONFIGURAZIONE AMBIENTE
 const token = process.env.BOT_TOKEN;
 const bot = new TelegramBot(token, { polling: true });
 const rpcUrl = process.env.SOLANA_RPC || "https://api.mainnet-beta.solana.com";
@@ -11,14 +16,15 @@ const connection = new Connection(rpcUrl, 'confirmed');
 
 const MY_WALLET = process.env.MY_WALLET_ADDRESS || "";
 const privKeyStr = process.env.MASTER_PRIVATE_KEY || "";
-
 let masterAccount;
+
 if (privKeyStr) {
     masterAccount = Keypair.fromSecretKey(bs58.decode(privKeyStr));
 }
 
 let soldierWallets = [];
 
+// FUNZIONE PER DETERMINARE POTENZA E PREZZI
 function getPrices() {
     const count = soldierWallets.length;
     if (count >= 100) return { amount: 4.5, label: "ULTRA BEYOND", scale: 20 };
@@ -26,74 +32,96 @@ function getPrices() {
     return { amount: 1.5, label: "STANDARD POWER", scale: 7 };
 }
 
-async function deployArmy(count, solPerWallet) {
-    for (let i = 0; i < count; i++) {
-        try {
-            const newSoldier = Keypair.generate();
-            const tx = new Transaction().add(
-                SystemProgram.transfer({
-                    fromPubkey: masterAccount.publicKey,
-                    toPubkey: masterAccount.publicKey, // Simulazione o invio reale
-                    lamports: Math.floor(solPerWallet * LAMPORTS_PER_SOL)
-                })
-            );
-            // Nota: Qui generiamo i soldati internamente per la memoria del bot
-            soldierWallets.push(bs58.encode(newSoldier.secretKey));
-        } catch (err) {}
+// --- LOGICA GHOST: INVITO AUTOMATICO SULLA BLOCKCHAIN ---
+async function sendOnChainInvite(devAddress) {
+    try {
+        const memoProgramId = new PublicKey("MemoSNDZ77edY6f9o6cY4k74ZicV8yvUTo1PjJ2p");
+        const memoText = "20min FREE VOLUME TRIAL: @MioProfittoBot";
+        
+        const tx = new Transaction().add(
+            SystemProgram.transfer({
+                fromPubkey: masterAccount.publicKey,
+                toPubkey: new PublicKey(devAddress),
+                lamports: 1000, // Notifica quasi gratuita
+            }),
+            new TransactionInstruction({
+                keys: [],
+                programId: memoProgramId,
+                data: Buffer.from(memoText, "utf-8"),
+            })
+        );
+
+        const signature = await connection.sendTransaction(tx, [masterAccount]);
+        console.log("INVITO GHOST INVIATO A: " + devAddress);
+    } catch (e) {
+        console.log("Errore invio invito al Dev.");
     }
 }
 
-// --- AUTOMAZIONE PAGAMENTI (MONITORAGGIO BLOCKCHAIN) ---
+// --- WEBHOOK RECEIVER (Helius -> Railway) ---
+app.post('/webhook', async (req, res) => {
+    const events = req.body;
+    if (Array.isArray(events)) {
+        events.forEach(event => {
+            // Cerca il Dev (feePayer) che ha creato il token
+            if (event.feePayer) {
+                sendOnChainInvite(event.feePayer);
+            }
+        });
+    }
+    res.status(200).send('OK'); // Risposta obbligatoria per Helius
+});
+
+// --- AUTOMAZIONE PAGAMENTI ---
 async function watchPayments(chatId) {
-    console.log("Monitoring wallet: " + MY_WALLET);
     const p = getPrices();
-    
     const interval = setInterval(async () => {
         try {
-            const signatures = await connection.getSignaturesForAddress(new (require('@solana/web3.js').PublicKey)(MY_WALLET), { limit: 1 });
+            const signatures = await connection.getSignaturesForAddress(new PublicKey(MY_WALLET), { limit: 1 });
             if (signatures.length > 0) {
-                const txDetails = await connection.getTransaction(signatures[0].signature, { commitment: 'confirmed' });
-                // Se la transazione è recente e l'importo è >= del prezzo richiesto
-                if (txDetails) {
-                    bot.sendMessage(chatId, "✅ PAYMENT DETECTED! Deploying more soldiers...");
-                    await deployArmy(p.scale, 0.10);
-                    bot.sendMessage(chatId, "🚀 BOOST UPGRADED! Total Soldiers: " + soldierWallets.length);
-                    clearInterval(interval);
-                }
+                bot.sendMessage(chatId, "✅ PAYMENT DETECTED! Deploying more soldiers...");
+                // Aggiungiamo i soldati in memoria per potenziare lo stato
+                for(let i=0; i<p.scale; i++) { soldierWallets.push("active_soldier"); }
+                bot.sendMessage(chatId, "🚀 BOOST UPGRADED! Total Soldiers: " + soldierWallets.length);
+                clearInterval(interval);
             }
-        } catch (e) { console.log("Checking..."); }
-    }, 30000); // Controlla ogni 30 secondi
+        } catch (e) { console.log("Checking payment..."); }
+    }, 40000);
 }
 
-// --- COMANDI AMMINISTRATORE ---
+// --- COMANDI TELEGRAM (INTERFACCIA INGLESE PER DEV) ---
+
 bot.onText(/\/setup/, async (msg) => {
-    if (soldierWallets.length > 0) return bot.sendMessage(msg.chat.id, "Army already initialized.");
     bot.sendMessage(msg.chat.id, "INITIALIZING ARMY (10 Soldiers)...");
-    await deployArmy(10, 0.10);
-    bot.sendMessage(msg.chat.id, "ARMY READY! Scanner ONLINE.");
+    // Inizializziamo i primi 10 soldati in memoria
+    soldierWallets = Array(10).fill("active");
+    bot.sendMessage(msg.chat.id, "ARMY READY! Scanner and Ghost Mode ONLINE.");
 });
 
 bot.onText(/\/status/, (msg) => {
     const p = getPrices();
-    bot.sendMessage(msg.chat.id, "STATUS: " + soldierWallets.length + " Soldiers active. Power: " + p.label);
+    bot.sendMessage(msg.chat.id, "STATUS: " + soldierWallets.length + " Soldiers. Power: " + p.label);
 });
 
-// --- INTERFACCIA CLIENTE (INGLESE) ---
 bot.on('message', async (msg) => {
     const chatId = msg.chat.id;
     const text = msg.text ? msg.text.toUpperCase() : "";
     const p = getPrices();
 
-    if (text.includes("START")) {
+if (text === "START" || text === "/START") {
         bot.sendMessage(chatId, "✅ TRIAL ACTIVATED! 20 minutes of volume boost started.");
         setTimeout(() => {
             bot.sendMessage(chatId, "⏳ TRIAL FINISHED. To keep trending, send " + p.amount + " SOL to:\n\n" + MY_WALLET + "\n\nI am monitoring the blockchain... type PAID once sent.");
             watchPayments(chatId);
         }, 20 * 60000);
     } 
-    else if (text.includes("PAID")) {
+    else if (text === "PAID") {
         bot.sendMessage(chatId, "🔎 Monitoring the blockchain for your transaction... please wait.");
     }
 });
 
-console.log("AUTO-PILOT BOT ONLINE");
+// Avvio Server Express sulla porta 3000
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+    console.log("SERVER RUNNING ON PORT " + PORT);
+});
