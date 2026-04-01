@@ -15,9 +15,9 @@ let soldierWallets = [];
 
 function getMarketPrices() {
     const count = soldierWallets.length;
-    if (count >= 100) return { short: "4.5 SOL", long: "12 SOL", label: "🔥 ULTRA (100+ Wallets)", scale: 20 };
-    if (count >= 50) return { short: "2.5 SOL", long: "8 SOL", label: "⚡ PRO (50+ Wallets)", scale: 12 };
-    return { short: "1.5 SOL", long: "5 SOL", label: "🛡️ STANDARD (10+ Wallets)", scale: 7 };
+    if (count >= 100) return { short: "4.5 SOL", long: "12 SOL", label: "ULTRA", scale: 20 };
+    if (count >= 50) return { short: "2.5 SOL", long: "8 SOL", label: "PRO", scale: 12 };
+    return { short: "1.5 SOL", long: "5 SOL", label: "STANDARD", scale: 7 };
 }
 
 async function deployArmy(count, solPerWallet) {
@@ -33,22 +33,22 @@ async function deployArmy(count, solPerWallet) {
             );
             await connection.sendTransaction(transaction, [masterAccount]);
             soldierWallets.push(bs58.encode(newSoldier.secretKey));
-        } catch (e) { console.error("Errore deploy."); }
+        } catch (e) { console.error("Error deploy"); }
     }
 }
 
 bot.onText(/\/setup/, async (msg) => {
-    if (soldierWallets.length > 0) return bot.sendMessage(msg.chat.id, "⚠️ Setup già completato.");
-    bot.sendMessage(msg.chat.id, "⚙️ Inizializzazione... Distribuzione 1.16 SOL.");
+    if (soldierWallets.length > 0) return bot.sendMessage(msg.chat.id, "Setup gia fatto.");
+    bot.sendMessage(msg.chat.id, "Avvio distribuzione 1.16 SOL...");
     try {
         await deployArmy(10, 0.10);
-        bot.sendMessage(msg.chat.id, ✅ **ESERCITO PRONTO!**\n🪖 Soldati: ${soldierWallets.length}\n📡 Scanner: ATTIVO.);
-    } catch (e) { bot.sendMessage(msg.chat.id, "❌ Errore saldo o RPC."); }
+        bot.sendMessage(msg.chat.id, "ESERCITO PRONTO! Soldati: " + soldierWallets.length + " - Scanner ATTIVO.");
+    } catch (e) { bot.sendMessage(msg.chat.id, "Errore saldo o RPC."); }
 });
 
 bot.onText(/\/status/, (msg) => {
     const p = getMarketPrices();
-    bot.sendMessage(msg.chat.id, 📊 STATO: ${soldierWallets.length} soldati. Potenza: ${p.label});
+    bot.sendMessage(msg.chat.id, "STATO: " + soldierWallets.length + " soldati. Potenza: " + p.label);
 });
 
 bot.on('message', async (msg) => {
@@ -57,15 +57,15 @@ bot.on('message', async (msg) => {
     const p = getMarketPrices();
 
     if (text.includes("START")) {
-        bot.sendMessage(chatId, 🚀 TRIAL ACTIVATED! 20 mins boost with ${soldierWallets.length} wallets.);
+        bot.sendMessage(chatId, "TRIAL ATTIVO! 20 minuti di boost con " + soldierWallets.length + " wallet.");
         setTimeout(() => {
-            bot.sendMessage(chatId, ⏱️ TRIAL EXPIRED. Send **${p.short}** to:\n\${MY_WALLET}\\nReply 'PAID'.);
+            bot.sendMessage(chatId, "PROVA FINITA. Invia " + p.short + " a: " + MY_WALLET + " poi scrivi PAID");
         }, 20 * 60000);
     } else if (text.includes("PAID")) {
-        bot.sendMessage(chatId, "⏳ VERIFYING... 50/50 Split active.");
+        bot.sendMessage(chatId, "VERIFICA IN CORSO... Split 50/50 attivo.");
         setTimeout(async () => {
             await deployArmy(p.scale, 0.10);
-            bot.sendMessage(chatId, ✅ CONFIRMED! Army: ${soldierWallets.length} units.);
+            bot.sendMessage(chatId, "PAGAMENTO CONFERMATO! Wallet totali: " + soldierWallets.length);
         }, 5000);
     }
 });
