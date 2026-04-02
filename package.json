@@ -1,7 +1,6 @@
 {
-  "name": "volume-master",
+  "name": "volume-bot",
   "version": "1.0.0",
-  "description": "",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"
